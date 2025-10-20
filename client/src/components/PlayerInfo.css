@@ -1,0 +1,67 @@
+.player-info {
+    background: white;
+    padding: 15px 25px;
+    border-radius: 15px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    min-width: 200px;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.player-info.active {
+    background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+    color: white;
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    animation: glow 1.5s infinite;
+}
+
+@keyframes glow {
+
+    0%,
+    100% {
+        box-shadow: 0 6px 12px rgba(255, 215, 0, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 6px 20px rgba(255, 215, 0, 0.8);
+    }
+}
+
+.player-info.you {
+    border: 3px solid #4ecdc4;
+}
+
+.player-name {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.player-cards {
+    text-align: center;
+}
+
+.card-count {
+    font-size: 18px;
+    color: #666;
+}
+
+.player-info.active .card-count {
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .player-info {
+        min-width: 150px;
+        padding: 10px 15px;
+    }
+
+    .player-name {
+        font-size: 16px;
+    }
+
+    .card-count {
+        font-size: 14px;
+    }
+}
