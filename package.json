@@ -3,10 +3,6 @@
     "version": "1.0.0",
     "description": "A multiplayer card game based on Crazy Eights",
     "private": true,
-    "workspaces": [
-        "server",
-        "client"
-    ],
     "scripts": {
         "install-all": "npm install && cd server && npm install && cd ../client && npm install",
         "dev": "concurrently \"npm run server\" \"npm run client\"",
