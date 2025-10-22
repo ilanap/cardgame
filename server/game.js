@@ -2,7 +2,7 @@ const { getActiveRules } = require('./rules');
 const { createDeck, canPlayCard } = require('./cards');
 
 class Game {
-    constructor(roomCode, maxPlayers = 4, customRules = {}) {
+    constructor(roomCode, maxPlayers = 4) {
         this.roomCode = roomCode;
         this.maxPlayers = maxPlayers;
         this.players = [];
@@ -10,8 +10,9 @@ class Game {
         this.discardPile = [];
         this.currentPlayerIndex = 0;
         this.started = false;
+        this.gameOver = false;
+        this.winner = null;
         this.direction = 1; // 1 for clockwise, -1 for counter-clockwise
-        this.rules = getActiveRules(customRules);
     }
 
     // Initialize a deck of cards
@@ -80,8 +81,8 @@ class Game {
     startGame() {
         this.deck = this.initializeDeck();
 
-        // Deal cards to each player based on rules
-        const handSize = this.rules.initialHandSize || 7;
+        // Deal cards to each player (default 7 cards)
+        const handSize = 7;
         this.players.forEach(player => {
             player.hand = this.deck.splice(0, handSize);
         });
@@ -90,6 +91,26 @@ class Game {
         this.discardPile.push(this.deck.pop());
 
         this.started = true;
+        this.gameOver = false;
+        this.winner = null;
+        this.currentPlayerIndex = 0;
+    }
+
+    restartGame() {
+        this.deck = this.initializeDeck();
+
+        // Deal cards to each player (default 7 cards)
+        const handSize = 7;
+        this.players.forEach(player => {
+            player.hand = this.deck.splice(0, handSize);
+        });
+
+        // Put first card on discard pile
+        this.discardPile.push(this.deck.pop());
+
+        this.started = true;
+        this.gameOver = false;
+        this.winner = null;
         this.currentPlayerIndex = 0;
     }
 
@@ -103,7 +124,7 @@ class Game {
 
     canPlayCard(card) {
         const topCard = this.getTopCard();
-        return canPlayCard(card, topCard, this.rules);
+        return canPlayCard(card, topCard);
     }
 
     playCard(playerId, cardIndex) {
@@ -139,6 +160,8 @@ class Game {
 
         // Check for winner
         if (player.hand.length === 0) {
+            this.gameOver = true;
+            this.winner = player.name;
             return {
                 success: true,
                 action,
@@ -197,6 +220,8 @@ class Game {
         return {
             roomCode: this.roomCode,
             started: this.started,
+            gameOver: this.gameOver,
+            winner: this.winner,
             players: this.players.map(p => ({
                 id: p.id,
                 name: p.name,
@@ -207,8 +232,7 @@ class Game {
             yourHand: player ? player.hand : [],
             topCard: this.discardPile.length > 0 ? this.getTopCard() : null,
             currentPlayerId: currentPlayer ? currentPlayer.id : null,
-            deckCount: this.deck.length,
-            rules: this.rules
+            deckCount: this.deck.length
         };
     }
 }

@@ -32,6 +32,11 @@ function App() {
     const [playerId, setPlayerId] = useState(null);
     const [playerName, setPlayerName] = useState(null);
     const [error, setError] = useState(null);
+    const [rules, setRules] = useState({
+        initialHandSize: 7,
+        eightIsWild: false,
+        drawUntilPlayable: false
+    });
     const [lastAction, setLastAction] = useState(null);
 
     // Load saved game session on mount (sessionStorage is per-tab)
@@ -39,8 +44,7 @@ function App() {
         const savedSession = sessionStorage.getItem('crazyEightsSession');
         if (savedSession) {
             try {
-                const { roomCode: savedRoomCode, playerId: savedPlayerId, playerName: savedPlayerName } = JSON.parse(savedSession);
-                setRoomCode(savedRoomCode);
+                const { playerId: savedPlayerId, playerName: savedPlayerName } = JSON.parse(savedSession);
                 setPlayerId(savedPlayerId);
                 setPlayerName(savedPlayerName);
             } catch (e) {
@@ -60,9 +64,9 @@ function App() {
             const savedSession = sessionStorage.getItem('crazyEightsSession');
             if (savedSession) {
                 try {
-                    const { roomCode: savedRoomCode, playerName: savedPlayerName } = JSON.parse(savedSession);
-                    console.log('Attempting to rejoin game:', savedRoomCode);
-                    newSocket.emit('rejoinGame', { roomCode: savedRoomCode, playerName: savedPlayerName });
+                    const { playerName: savedPlayerName } = JSON.parse(savedSession);
+                    console.log('Attempting to rejoin game');
+                    newSocket.emit('rejoinGame', { playerName: savedPlayerName });
                 } catch (e) {
                     console.error('Failed to rejoin:', e);
                     sessionStorage.removeItem('crazyEightsSession');
@@ -70,31 +74,18 @@ function App() {
             }
         });
 
-        newSocket.on('gameCreated', ({ roomCode, playerId, playerName, gameState }) => {
-            setRoomCode(roomCode);
+        newSocket.on('gameJoined', ({ playerId, playerName, gameState }) => {
             setPlayerId(playerId);
             setPlayerName(playerName);
             setGameState(gameState);
             setError(null);
 
             // Save session to sessionStorage (per-tab, allows multiple users in different tabs)
-            sessionStorage.setItem('crazyEightsSession', JSON.stringify({ roomCode, playerId, playerName }));
+            sessionStorage.setItem('crazyEightsSession', JSON.stringify({ playerId, playerName }));
         });
 
-        newSocket.on('gameJoined', ({ roomCode, playerId, playerName, gameState }) => {
-            setRoomCode(roomCode);
-            setPlayerId(playerId);
-            setPlayerName(playerName);
-            setGameState(gameState);
-            setError(null);
-
-            // Save session to sessionStorage (per-tab, allows multiple users in different tabs)
-            sessionStorage.setItem('crazyEightsSession', JSON.stringify({ roomCode, playerId, playerName }));
-        });
-
-        newSocket.on('gameRejoined', ({ roomCode, playerId, playerName, gameState }) => {
+        newSocket.on('gameRejoined', ({ playerId, playerName, gameState }) => {
             console.log('Successfully rejoined game');
-            setRoomCode(roomCode);
             setPlayerId(playerId);
             setPlayerName(playerName);
             setGameState(gameState);
@@ -108,6 +99,11 @@ function App() {
         newSocket.on('playerRejoined', ({ playerName, players }) => {
             setGameState(prev => ({ ...prev, players }));
             console.log(`${playerName} rejoined the game`);
+        });
+
+        newSocket.on('gameRestarted', ({ gameState }) => {
+            setGameState(gameState);
+            setError(null);
         });
 
         newSocket.on('gameStarted', ({ gameState }) => {
@@ -124,8 +120,7 @@ function App() {
         });
 
         newSocket.on('gameOver', ({ winner, gameState }) => {
-            setGameState(gameState);
-            alert(`🎉 ${winner} wins! 🎉`);
+            setGameState({...gameState, gameOver: true, winner});
         });
 
         newSocket.on('playerLeft', ({ playerName, players }) => {
@@ -150,39 +145,39 @@ function App() {
         };
     }, []);
 
-    const createGame = (playerName, playerCount) => {
+    const joinGame = (playerName, gameRules) => {
+        setRules(gameRules);
         if (socket) {
-            socket.emit('createGame', { playerName, playerCount });
-        }
-    };
-
-    const joinGame = (roomCode, playerName) => {
-        if (socket) {
-            socket.emit('joinGame', { roomCode, playerName });
+            socket.emit('joinGame', { playerName });
         }
     };
 
     const startGame = () => {
-        if (socket && roomCode) {
-            socket.emit('startGame', { roomCode });
+        if (socket) {
+            socket.emit('startGame');
         }
     };
 
     const playCard = (cardIndex) => {
-        if (socket && roomCode) {
-            socket.emit('playCard', { roomCode, cardIndex });
+        if (socket) {
+            socket.emit('playCard', { cardIndex });
         }
     };
 
     const drawCard = () => {
-        if (socket && roomCode) {
-            socket.emit('drawCard', { roomCode });
+        if (socket) {
+            socket.emit('drawCard');
+        }
+    };
+
+    const restartGame = () => {
+        if (socket) {
+            socket.emit('restartGame');
         }
     };
 
     const leaveGame = () => {
         setGameState(null);
-        setRoomCode(null);
         setPlayerId(null);
         setPlayerName(null);
         setError(null);
@@ -202,7 +197,6 @@ function App() {
 
             {!gameState ? (
                 <Lobby
-                    onCreateGame={createGame}
                     onJoinGame={joinGame}
                 />
             ) : (
@@ -213,7 +207,9 @@ function App() {
                     onPlayCard={playCard}
                     onDrawCard={drawCard}
                     onLeaveGame={leaveGame}
+                    onRestartGame={restartGame}
                     lastAction={lastAction}
+                    rules={rules}
                 />
             )}
         </div>

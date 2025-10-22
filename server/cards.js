@@ -51,10 +51,9 @@ function createDeck() {
  * Check if a card is playable on top of another card
  * @param {Object} card - The card to play
  * @param {Object} topCard - The card on top of discard pile
- * @param {Object} rules - Current game rules
  * @returns {boolean}
  */
-function canPlayCard(card, topCard, rules) {
+function canPlayCard(card, topCard) {
     if (!card || !topCard) return false;
 
     // Jokers can be played on anything
@@ -64,14 +63,7 @@ function canPlayCard(card, topCard, rules) {
     if (topCard.type === 'joker') return true;
 
     // Basic rule: match suit or rank
-    if (rules.matchColorOrNumber) {
-        return card.suit === topCard.suit || card.rank === topCard.rank;
-    }
-
-    // Future: Add more complex matching rules here
-    // if (rules.eightIsWild && card.rank === '8') return true;
-
-    return false;
+    return card.suit === topCard.suit || card.rank === topCard.rank;
 }
 
 module.exports = {

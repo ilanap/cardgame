@@ -32,165 +32,139 @@ function getLocalIPAddress() {
     return 'localhost';
 }
 
-// Store active games
-const games = new Map();
-
-// Generate a random room code
-function generateRoomCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
+// Store single active game
+let currentGame = null;
 
 io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);
 
-    // Create a new game room
-    socket.on('createGame', ({ playerName, playerCount }) => {
-        const roomCode = generateRoomCode();
-        const game = new Game(roomCode, playerCount);
-        game.addPlayer(socket.id, playerName);
-        games.set(roomCode, game);
-
-        socket.join(roomCode);
-        socket.emit('gameCreated', {
-            roomCode,
-            playerId: socket.id,
-            playerName,
-            gameState: game.getGameState(socket.id)
-        });
-
-        console.log(`Game created: ${roomCode} by ${playerName}`);
-    });
-
-    // Join an existing game
-    socket.on('joinGame', ({ roomCode, playerName }) => {
-        const game = games.get(roomCode);
-
-        if (!game) {
-            socket.emit('error', { message: 'Game not found' });
-            return;
+    // Join game (creates new game if none exists)
+    socket.on('joinGame', ({ playerName }) => {
+        // If no game exists, create one
+        if (!currentGame) {
+            currentGame = new Game('GLOBAL', 4);
+            console.log('New global game created');
         }
 
-        if (game.isFull()) {
+        // Check if game is full
+        if (currentGame.isFull()) {
             socket.emit('error', { message: 'Game is full' });
             return;
         }
 
-        if (game.isStarted()) {
-            socket.emit('error', { message: 'Game already in progress. Please wait until it finishes or create a new game.' });
+        // Check if game already started
+        if (currentGame.isStarted()) {
+            socket.emit('error', { message: 'Game already in progress. Please wait until it finishes.' });
             return;
         }
 
-        game.addPlayer(socket.id, playerName);
-        socket.join(roomCode);
+        currentGame.addPlayer(socket.id, playerName);
 
-        // Notify all players in the room
-        io.to(roomCode).emit('playerJoined', {
-            players: game.getPlayers()
+        // Notify all players in the game
+        currentGame.getPlayers().forEach(player => {
+            io.to(player.id).emit('playerJoined', {
+                players: currentGame.getPlayers()
+            });
         });
 
         socket.emit('gameJoined', {
-            roomCode,
             playerId: socket.id,
             playerName,
-            gameState: game.getGameState(socket.id)
+            gameState: currentGame.getGameState(socket.id)
         });
 
-        console.log(`${playerName} joined game: ${roomCode}`);
+        console.log(`${playerName} joined the global game`);
     });
 
     // Rejoin an existing game after disconnect/refresh
-    socket.on('rejoinGame', ({ roomCode, playerName }) => {
-        const game = games.get(roomCode);
-
-        if (!game) {
-            socket.emit('error', { message: 'Game no longer exists' });
+    socket.on('rejoinGame', ({ playerName }) => {
+        if (!currentGame) {
+            socket.emit('error', { message: 'No game exists to rejoin' });
             return;
         }
 
         // Check if player was in this game (by name)
-        const existingPlayer = game.players.find(p => p.name === playerName);
+        const existingPlayer = currentGame.players.find(p => p.name === playerName);
 
         if (existingPlayer) {
             // Update the player's socket ID and mark as connected
             existingPlayer.id = socket.id;
             existingPlayer.connected = true;
-            socket.join(roomCode);
 
             socket.emit('gameRejoined', {
-                roomCode,
                 playerId: socket.id,
                 playerName,
-                gameState: game.getGameState(socket.id)
+                gameState: currentGame.getGameState(socket.id)
             });
 
             // Notify other players
-            io.to(roomCode).emit('playerRejoined', {
-                playerName,
-                players: game.getPlayers()
+            currentGame.getPlayers().forEach(player => {
+                if (player.id !== socket.id) {
+                    io.to(player.id).emit('playerRejoined', {
+                        playerName,
+                        players: currentGame.getPlayers()
+                    });
+                }
             });
 
-            console.log(`${playerName} rejoined game: ${roomCode}`);
+            console.log(`${playerName} rejoined the global game`);
         } else {
             // Player wasn't in this game, try to join as new player
-            if (game.isFull()) {
+            if (currentGame.isFull()) {
                 socket.emit('error', { message: 'Game is full' });
                 return;
             }
 
-            if (game.isStarted()) {
-                socket.emit('error', { message: 'Game already in progress. Please wait until it finishes or create a new game.' });
+            if (currentGame.isStarted()) {
+                socket.emit('error', { message: 'Game already in progress. Please wait until it finishes.' });
                 return;
             }
 
-            game.addPlayer(socket.id, playerName);
-            socket.join(roomCode);
+            currentGame.addPlayer(socket.id, playerName);
 
-            io.to(roomCode).emit('playerJoined', {
-                players: game.getPlayers()
+            currentGame.getPlayers().forEach(player => {
+                io.to(player.id).emit('playerJoined', {
+                    players: currentGame.getPlayers()
+                });
             });
 
             socket.emit('gameJoined', {
-                roomCode,
                 playerId: socket.id,
                 playerName,
-                gameState: game.getGameState(socket.id)
+                gameState: currentGame.getGameState(socket.id)
             });
 
-            console.log(`${playerName} joined game: ${roomCode}`);
+            console.log(`${playerName} joined the global game`);
         }
     });
 
     // Start the game
-    socket.on('startGame', ({ roomCode }) => {
-        const game = games.get(roomCode);
-
-        if (!game) {
-            socket.emit('error', { message: 'Game not found' });
+    socket.on('startGame', () => {
+        if (!currentGame) {
+            socket.emit('error', { message: 'No game exists' });
             return;
         }
 
-        game.startGame();
+        currentGame.startGame();
 
         // Send personalized game state to each player
-        game.getPlayers().forEach(player => {
+        currentGame.getPlayers().forEach(player => {
             io.to(player.id).emit('gameStarted', {
-                gameState: game.getGameState(player.id)
+                gameState: currentGame.getGameState(player.id)
             });
         });
 
-        console.log(`Game started: ${roomCode}`);
+        console.log('Global game started');
     });
 
     // Play a card
-    socket.on('playCard', ({ roomCode, cardIndex }) => {
-        const game = games.get(roomCode);
-
-        if (!game) {
-            socket.emit('error', { message: 'Game not found' });
+    socket.on('playCard', ({ cardIndex }) => {
+        if (!currentGame) {
+            socket.emit('error', { message: 'No game exists' });
             return;
         }
 
-        const result = game.playCard(socket.id, cardIndex);
+        const result = currentGame.playCard(socket.id, cardIndex);
 
         if (!result.success) {
             socket.emit('error', { message: result.message });
@@ -198,32 +172,32 @@ io.on('connection', (socket) => {
         }
 
         // Send updated game state to all players
-        game.getPlayers().forEach(player => {
+        currentGame.getPlayers().forEach(player => {
             io.to(player.id).emit('gameUpdate', {
-                gameState: game.getGameState(player.id),
+                gameState: currentGame.getGameState(player.id),
                 lastAction: result.action
             });
         });
 
         // Check for winner
         if (result.winner) {
-            io.to(roomCode).emit('gameOver', {
-                winner: result.winner,
-                gameState: game.getGameState(socket.id)
+            currentGame.getPlayers().forEach(player => {
+                io.to(player.id).emit('gameOver', {
+                    winner: result.winner,
+                    gameState: currentGame.getGameState(player.id)
+                });
             });
         }
     });
 
     // Draw a card
-    socket.on('drawCard', ({ roomCode }) => {
-        const game = games.get(roomCode);
-
-        if (!game) {
-            socket.emit('error', { message: 'Game not found' });
+    socket.on('drawCard', () => {
+        if (!currentGame) {
+            socket.emit('error', { message: 'No game exists' });
             return;
         }
 
-        const result = game.drawCard(socket.id);
+        const result = currentGame.drawCard(socket.id);
 
         if (!result.success) {
             socket.emit('error', { message: result.message });
@@ -231,49 +205,66 @@ io.on('connection', (socket) => {
         }
 
         // Send updated game state to all players
-        game.getPlayers().forEach(player => {
+        currentGame.getPlayers().forEach(player => {
             io.to(player.id).emit('gameUpdate', {
-                gameState: game.getGameState(player.id),
+                gameState: currentGame.getGameState(player.id),
                 lastAction: result.action
             });
         });
+    });
+
+    // Restart game with same players
+    socket.on('restartGame', () => {
+        if (!currentGame) {
+            socket.emit('error', { message: 'No game exists' });
+            return;
+        }
+
+        // Reset game state but keep players
+        currentGame.restartGame();
+
+        // Send updated game state to all players
+        currentGame.getPlayers().forEach(player => {
+            io.to(player.id).emit('gameRestarted', {
+                gameState: currentGame.getGameState(player.id)
+            });
+        });
+
+        console.log('Global game restarted');
     });
 
     // Disconnect
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
 
-        // Give players 30 seconds to reconnect before removing them
-        setTimeout(() => {
-            games.forEach((game, roomCode) => {
-                const player = game.players.find(p => p.id === socket.id);
-
-                if (player && !player.connected) {
-                    // Player didn't reconnect, remove them
-                    const playerName = player.name;
-                    game.removePlayer(socket.id);
-
-                    if (game.getPlayers().length === 0) {
-                        games.delete(roomCode);
-                        console.log(`Game ${roomCode} deleted (no players)`);
-                    } else {
-                        io.to(roomCode).emit('playerLeft', {
-                            playerName,
-                            players: game.getPlayers()
-                        });
-                    }
-                }
-            });
-        }, 30000); // 30 second grace period
-
-        // Mark player as disconnected but keep them in the game
-        games.forEach((game, roomCode) => {
-            const player = game.players.find(p => p.id === socket.id);
+        if (currentGame) {
+            const player = currentGame.players.find(p => p.id === socket.id);
             if (player) {
                 player.connected = false;
                 console.log(`${player.name} disconnected, waiting for reconnection...`);
+
+                // Give player 30 seconds to reconnect before removing them
+                setTimeout(() => {
+                    if (currentGame && player && !player.connected) {
+                        // Player didn't reconnect, remove them
+                        const playerName = player.name;
+                        currentGame.removePlayer(socket.id);
+
+                        if (currentGame.getPlayers().length === 0) {
+                            currentGame = null;
+                            console.log('Global game deleted (no players)');
+                        } else {
+                            currentGame.getPlayers().forEach(p => {
+                                io.to(p.id).emit('playerLeft', {
+                                    playerName,
+                                    players: currentGame.getPlayers()
+                                });
+                            });
+                        }
+                    }
+                }, 30000); // 30 second grace period
             }
-        });
+        }
     });
 });
 

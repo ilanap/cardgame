@@ -10,16 +10,19 @@ function GameBoard({
     onPlayCard,
     onDrawCard,
     onLeaveGame,
-    lastAction
+    onRestartGame,
+    lastAction,
+    rules
 }) {
     const {
         started,
+        gameOver,
+        winner,
         players,
         yourHand,
         topCard,
         currentPlayerId,
-        deckCount,
-        roomCode
+        deckCount
     } = gameState;
 
     const isYourTurn = currentPlayerId === playerId;
@@ -28,26 +31,63 @@ function GameBoard({
 
     const canPlayCard = (card) => {
         if (!isYourTurn || !topCard) return false;
+        
         // Handle jokers
         if (card.type === 'joker') return true;
         if (topCard.type === 'joker') return true;
-        // Match suit or rank
+        
+        // 8s are wild (if rule enabled)
+        if (rules?.eightIsWild && card.rank === '8') return true;
+        
+        // Basic rule: match suit or rank
         return card.suit === topCard.suit || card.rank === topCard.rank;
     };
 
     // Check if player has any playable cards
     const hasPlayableCards = isYourTurn && yourHand && yourHand.some(card => canPlayCard(card));
 
+    // Show "must draw" when player has no playable cards (regardless of drawUntilPlayable rule)
+    const mustDraw = isYourTurn && !hasPlayableCards;
+
     return (
         <div className="game-board">
             <div className="game-header">
                 <div className="room-info">
-                    <span className="room-code">Room: {roomCode}</span>
+                    {rules && (
+                        <span className="rules-info">
+                            {rules.initialHandSize} cards • 
+                            {rules.eightIsWild && ' 8s wild •'}
+                            {rules.drawUntilPlayable && ' Draw until playable'}
+                        </span>
+                    )}
                     <button className="leave-button" onClick={onLeaveGame}>Leave</button>
                 </div>
             </div>
 
-            {!started ? (
+            {gameOver ? (
+                <div className="game-over-screen">
+                    <div className="winner-announcement">
+                        <h1>🎉 Game Over! 🎉</h1>
+                        <h2>{winner} Wins!</h2>
+                        <div className="final-scores">
+                            <h3>Final Scores:</h3>
+                            {players.map(player => (
+                                <div key={player.id} className={`final-score ${player.name === winner ? 'winner' : ''}`}>
+                                    {player.name}: {player.cardCount} cards left
+                                </div>
+                            ))}
+                        </div>
+                        <div className="game-over-actions">
+                            <button className="restart-button" onClick={onRestartGame}>
+                                Play Again
+                            </button>
+                            <button className="leave-button" onClick={onLeaveGame}>
+                                Leave Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : !started ? (
                 <div className="waiting-room">
                     <h2>Waiting Room</h2>
                     <div className="players-list">
@@ -81,17 +121,17 @@ function GameBoard({
                     <div className="game-area">
                         <div className="deck-area">
                             <div className="deck-column">
-                                <div className={`deck ${isYourTurn ? 'your-turn' : ''} ${!hasPlayableCards && isYourTurn ? 'must-draw' : ''}`}>
+                                <div className={`deck ${isYourTurn ? 'your-turn' : ''} ${mustDraw ? 'must-draw' : ''}`}>
                                     <div className="card-back">
                                         {deckCount > 0 ? `${deckCount} cards` : 'Empty'}
                                     </div>
                                 </div>
                                 <button
-                                    className={`draw-button ${!hasPlayableCards && isYourTurn ? 'must-draw' : ''}`}
+                                    className={`draw-button ${mustDraw ? 'must-draw' : ''}`}
                                     onClick={onDrawCard}
                                     disabled={!isYourTurn}
                                 >
-                                    {!hasPlayableCards && isYourTurn ? '⚠️ Must Draw!' : (isYourTurn ? '👆 Draw Card' : 'Draw Card')}
+                                    {mustDraw ? '⚠️ Must Draw!' : (isYourTurn ? '👆 Draw Card' : 'Draw Card')}
                                 </button>
                             </div>
                             {topCard && (

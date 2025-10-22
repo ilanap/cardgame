@@ -1,114 +1,96 @@
 import React, { useState } from 'react';
 import './Lobby.css';
 
-function Lobby({ onCreateGame, onJoinGame }) {
+function Lobby({ onJoinGame }) {
     const [playerName, setPlayerName] = useState('');
-    const [playerCount, setPlayerCount] = useState(2);
-    const [roomCodeInput, setRoomCodeInput] = useState('');
-    const [mode, setMode] = useState(null); // 'create' or 'join'
-
-    const handleCreateGame = (e) => {
-        e.preventDefault();
-        if (playerName.trim()) {
-            onCreateGame(playerName.trim(), playerCount);
-        }
-    };
+    const [rules, setRules] = useState({
+        initialHandSize: 7,
+        eightIsWild: false,
+        drawUntilPlayable: false
+    });
 
     const handleJoinGame = (e) => {
         e.preventDefault();
-        if (playerName.trim() && roomCodeInput.trim()) {
-            onJoinGame(roomCodeInput.trim().toUpperCase(), playerName.trim());
+        if (playerName.trim()) {
+            onJoinGame(playerName.trim(), rules);
         }
     };
 
-    if (!mode) {
-        return (
-            <div className="lobby-container">
-                <h1 className="game-title">8️⃣ Crazy Eights 8️⃣</h1>
-                <div className="mode-selection">
-                    <button className="mode-button create" onClick={() => setMode('create')}>
-                        Create New Game
-                    </button>
-                    <button className="mode-button join" onClick={() => setMode('join')}>
-                        Join Game
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    const toggleRule = (ruleKey) => {
+        setRules(prev => ({
+            ...prev,
+            [ruleKey]: !prev[ruleKey]
+        }));
+    };
 
-    if (mode === 'create') {
-        return (
-            <div className="lobby-container">
-                <h1 className="game-title">8️⃣ Create Game 8️⃣</h1>
-                <form onSubmit={handleCreateGame} className="lobby-form">
-                    <input
-                        type="text"
-                        placeholder="Your Name"
-                        value={playerName}
-                        onChange={(e) => setPlayerName(e.target.value)}
-                        maxLength={20}
-                        required
-                    />
+    const updateHandSize = (size) => {
+        setRules(prev => ({
+            ...prev,
+            initialHandSize: size
+        }));
+    };
 
-                    <div className="player-count-selector">
-                        <label>Number of Players:</label>
-                        <div className="player-count-buttons">
-                            {[2, 3, 4].map(count => (
+    return (
+        <div className="lobby-container">
+            <h1 className="game-title">8️⃣ Crazy Eights 8️⃣</h1>
+            <form onSubmit={handleJoinGame} className="lobby-form">
+                <input
+                    type="text"
+                    placeholder="Your Name"
+                    value={playerName}
+                    onChange={(e) => setPlayerName(e.target.value)}
+                    maxLength={20}
+                    required
+                />
+
+                <div className="rules-selector">
+                    <label>Game Rules:</label>
+                    
+                    <div className="rule-option">
+                        <label>Starting Hand Size:</label>
+                        <div className="hand-size-buttons">
+                            {[5, 7, 9].map(size => (
                                 <button
-                                    key={count}
+                                    key={size}
                                     type="button"
-                                    className={`player-count-btn ${playerCount === count ? 'active' : ''}`}
-                                    onClick={() => setPlayerCount(count)}
+                                    className={`hand-size-btn ${rules.initialHandSize === size ? 'active' : ''}`}
+                                    onClick={() => updateHandSize(size)}
                                 >
-                                    {count}
+                                    {size}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <button type="submit" className="submit-button">
-                        Create Game
-                    </button>
-                    <button type="button" className="back-button" onClick={() => setMode(null)}>
-                        Back
-                    </button>
-                </form>
-            </div>
-        );
-    }
+                    <div className="rule-option">
+                        <label>
+                            <input
+                                type="checkbox"
+                                checked={rules.eightIsWild}
+                                onChange={() => toggleRule('eightIsWild')}
+                            />
+                            8s are Wild (can be played on any card)
+                        </label>
+                    </div>
 
-    if (mode === 'join') {
-        return (
-            <div className="lobby-container">
-                <h1 className="game-title">8️⃣ Join Game 8️⃣</h1>
-                <form onSubmit={handleJoinGame} className="lobby-form">
-                    <input
-                        type="text"
-                        placeholder="Your Name"
-                        value={playerName}
-                        onChange={(e) => setPlayerName(e.target.value)}
-                        maxLength={20}
-                        required
-                    />
-                    <input
-                        type="text"
-                        placeholder="Room Code"
-                        value={roomCodeInput}
-                        onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
-                        maxLength={6}
-                        required
-                    />
-                    <button type="submit" className="submit-button">
-                        Join Game
-                    </button>
-                    <button type="button" className="back-button" onClick={() => setMode(null)}>
-                        Back
-                    </button>
-                </form>
-            </div>
-        );
-    }
+                    <div className="rule-option">
+                        <label>
+                            <input
+                                type="checkbox"
+                                checked={rules.drawUntilPlayable}
+                                onChange={() => toggleRule('drawUntilPlayable')}
+                            />
+                            Draw until playable (instead of draw 1 and pass)
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" className="submit-button">
+                    Join Game
+                </button>
+            </form>
+        </div>
+    );
 }
 
 export default Lobby;
